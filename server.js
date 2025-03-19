@@ -10,25 +10,42 @@ let val = 0;
 // Initialisation de socket.io avec CORS configuré
 const io = socketIo(server, {
   cors: {
-    origin: "*",  // Assurez-vous que le client Vue.js est bien à cette adresse
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true,
   }
 });
 
+// Stockage des choix des utilisateurs par room
+const rooms = {};
+
 // Test de la route GET '/'
 app.get('/', function (req, res) {
-  res.send('Les serveur est en marche');
+  res.send('Le serveur est en marche');
 });
 
-// Exemple de socket.io sur votre serveur
 io.on('connection', (socket) => {
   console.log('Nouvelle connexion');
 
-  // Exemple de gestion de message
-  socket.on('message', (data) => {
-    console.log('Message reçu du client:', data);
-    socket.emit('message', `je suis le serveur, message` + getValeur() +`  : ${data}`);
+  // Rejoindre une room
+  socket.on('joinRoom', (room) => {
+    socket.join(room);
+    console.log(`Utilisateur rejoint la room: ${room}`);
+
+    // Envoyer l'état actuel des choix dans cette room
+    if (!rooms[room]) rooms[room] = {}; // Initialisation si vide
+    io.to(room).emit('updateChoices', rooms[room]);
+  });
+
+  // Quand un utilisateur choisit un numéro
+  socket.on('chooseNumber', ({ room, username, number }) => {
+    if (!rooms[room]) rooms[room] = {}; // Création si la room n'existe pas
+    rooms[room][username] = number; // Enregistrer le choix de l'utilisateur
+
+    console.log(`${username} a choisi ${number} dans la room ${room}`);
+
+    // Envoyer la mise à jour à tous les membres de la room
+    io.to(room).emit('updateChoices', rooms[room]);
   });
 
   // Gérer la déconnexion
@@ -41,8 +58,3 @@ io.on('connection', (socket) => {
 server.listen(3000, () => {
   console.log('Serveur en écoute sur le port 3000');
 });
-
-
-const getValeur = ()=>{
-  return val === 10 ? val = 0 : val++;
-}
